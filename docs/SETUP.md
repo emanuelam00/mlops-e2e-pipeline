@@ -286,9 +286,17 @@ inside the **eval image** via `DockerOperator`, with MLflow logging to the
 compose MLflow server. Airflow only orchestrates.
 
 **F1. Prereqs** (from Section E): the stack is up, the eval image is built
-(`docker build -t mlops-eval:latest .`), and `.env` has `HOST_PROJECT_DIR`,
-`HOST_PARENT_DIR`, `EVAL_IMAGE`, and `COMPOSE_NETWORK` (default
-`mlops-e2e-pipeline_default` — verify with `docker network ls | grep default`).
+(`docker build -t mlops-eval:latest .`), and `.env` has `HOST_PROJECT_DIR` and
+`HOST_PARENT_DIR`.
+
+> **`EVAL_IMAGE` and `COMPOSE_NETWORK` are optional** — compose already defaults
+> them, so you only need to set them if you deviate from the defaults:
+> - `EVAL_IMAGE` (default `mlops-eval:latest`) = the `name:tag` you passed to
+>   `docker build -t ... .`. Only override if you tagged the image differently.
+> - `COMPOSE_NETWORK` (default `mlops-e2e-pipeline_default`) = the compose
+>   network name. Verify it matches with `docker network ls | grep default`; only
+>   override if your compose project was renamed (e.g. a different repo dir name).
+
 After editing `.env`, apply it: `docker compose up -d`.
 
 **F2. Trigger** `evaluate_agent_docker` from the Airflow UI (http://localhost:8080)

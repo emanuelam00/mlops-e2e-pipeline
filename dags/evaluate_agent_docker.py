@@ -37,6 +37,19 @@ if str(PROJECT_ROOT) not in sys.path:
 from pipeline.config import build_run_config  # noqa: E402
 from pipeline.layout import prepare_run_dir  # noqa: E402
 
+
+class EvalDockerOperator(DockerOperator):
+    """DockerOperator that does NOT treat templated values as template files.
+
+    Airflow's default ``template_ext`` (``.sh``, ``.bash``, ...) makes any
+    rendered field value ending in those extensions get loaded as a Jinja
+    template FILE. We pass script paths as command args (e.g. ``run-agent.sh``),
+    so that behavior raises TemplateNotFound. Emptying ``template_ext`` keeps
+    normal Jinja/XCom rendering but disables the file-load step.
+    """
+
+    template_ext: tuple[str, ...] = ()
+
 # --- host-side locations (the host daemon resolves DockerOperator mounts) ------
 HOST_PROJECT_DIR = os.environ.get("HOST_PROJECT_DIR", str(PROJECT_ROOT))
 HOST_PARENT_DIR = os.environ.get("HOST_PARENT_DIR", str(Path(HOST_PROJECT_DIR).parent))
@@ -115,7 +128,7 @@ def evaluate_agent_docker():
 
     cfg = prepare_run()
 
-    run_agent = DockerOperator(
+    run_agent = EvalDockerOperator(
         task_id="run_agent",
         command=["bash", f"{HOST_PROJECT_DIR}/scripts/run-agent.sh"],
         environment={
@@ -132,7 +145,7 @@ def evaluate_agent_docker():
         **_docker_defaults,
     )
 
-    run_eval = DockerOperator(
+    run_eval = EvalDockerOperator(
         task_id="run_eval",
         # Harness writes relative to cwd -> run inside the run-eval dir.
         command=[
@@ -148,7 +161,7 @@ def evaluate_agent_docker():
         **_docker_defaults,
     )
 
-    summarize = DockerOperator(
+    summarize = EvalDockerOperator(
         task_id="summarize_and_log",
         working_dir=HOST_PROJECT_DIR,
         command=["python", "-m", "pipeline.summarize", "--run-id", RID, "--runs-root", HOST_RUNS_DIR],
