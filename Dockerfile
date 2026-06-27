@@ -14,7 +14,12 @@ WORKDIR /mlops-assignment
 COPY pyproject.toml .
 COPY uv.lock .
 
-RUN uv sync --locked
+# Resolve + install the project deps (mini-swe-agent, swebench, mlflow, boto3).
+# We intentionally do NOT use --locked: the committed uv.lock may lag pyproject
+# (e.g. after adding deps on a machine without Python >=3.12 to re-lock), and a
+# plain `uv sync` resolves from pyproject and refreshes the lock so the build is
+# robust regardless of lock state. Run `uv lock` on a Python >=3.12 host to pin.
+RUN uv sync
 
 ENV PATH="/mlops-assignment/.venv/bin:$PATH"
 

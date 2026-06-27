@@ -4,6 +4,16 @@
 > compaction. **Update cadence: every ~5 interactions** (and at any major
 > milestone). Last updated: 2026-06-27 — ALL 4 PHASES COMPLETE & VERIFIED ON VM.
 
+## POST-COMPLETION POLISH (2026-06-27)
+- VM was DESTROYED (so the good uv.lock with mlflow/boto3 is gone; committed
+  uv.lock is STALE — lacks mlflow/boto3). FIX: Dockerfile now uses `uv sync`
+  (NOT --locked) so the eval image builds regardless of lock state. To re-pin:
+  `uv lock` on a Python>=3.12 host, commit, switch back to --locked. (Sandbox
+  only has py3.10 + can't download 3.12, so couldn't regenerate here.)
+- README rewritten as a reproduction guide (overview + repro steps mirroring
+  SETUP.md + links to REPORT.md and docs/ASSIGNMENT.md). Original lecturer
+  assignment text preserved verbatim in docs/ASSIGNMENT.md.
+
 ## STATUS: COMPLETE
 Full DockerOperator run green end-to-end; artifacts uploaded to local MinIO S3;
 manifest has remote_artifact_uri; MLflow shows multiple runs (comparison view).
