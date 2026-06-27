@@ -1,0 +1,16 @@
+# MLflow tracking server image.
+#
+# Plain Python base + mlflow so the server version tracks the client (installed
+# via uv). psycopg2 for the Postgres backend store; boto3 so artifacts can live
+# in Nebius Object Storage (Phase 4).
+FROM python:3.12-slim
+
+RUN pip install --no-cache-dir \
+      mlflow \
+      psycopg2-binary \
+      boto3
+
+EXPOSE 5000
+
+# The actual `mlflow server ...` command is provided by docker-compose so the
+# backend/artifact URIs stay configurable from one place.

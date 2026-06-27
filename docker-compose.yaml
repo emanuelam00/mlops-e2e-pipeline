@@ -1,0 +1,168 @@
+# Production-style local deployment: Airflow (LocalExecutor) + MLflow + Postgres.
+#
+# Quick start (see docs/SETUP.md "Phase 3" for the full runbook):
+#   1. Set the required vars in .env (AIRFLOW_UID, DOCKER_GID, HOST_PROJECT_DIR,
+#      HOST_PARENT_DIR, AIRFLOW_IMAGE_NAME, NEBIUS_API_KEY).
+#   2. docker compose build
+#   3. docker compose up -d
+#   4. Airflow UI  -> http://localhost:8080  (admin / admin)
+#      MLflow UI   -> http://localhost:5000
+#
+# LocalExecutor keeps it lean (no Celery/Redis): tasks run in the scheduler.
+# The Docker socket is mounted so the DockerOperator tasks can launch the eval
+# image, and so SWE-bench's harness can spawn its per-task containers.
+
+x-airflow-common: &airflow-common
+  build:
+    context: .
+    dockerfile: docker/Dockerfile.airflow
+    args:
+      AIRFLOW_IMAGE_NAME: ${AIRFLOW_IMAGE_NAME:-apache/airflow:3.2.2}
+  environment: &airflow-common-env
+    AIRFLOW__CORE__EXECUTOR: LocalExecutor
+    AIRFLOW__CORE__AUTH_MANAGER: airflow.providers.fab.auth_manager.fab_auth_manager.FabAuthManager
+    AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres/airflow
+    AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+    AIRFLOW__CORE__DAGS_FOLDER: /opt/airflow/dags
+    AIRFLOW__CORE__FERNET_KEY: ${AIRFLOW_FERNET_KEY:-}
+    # Airflow 3.x: every component authenticates to the Task Execution API with
+    # this JWT secret (must be IDENTICAL across services) and reaches it at this
+    # URL. Missing/mismatched -> tasks never run. Health check server on :8974.
+    AIRFLOW__API_AUTH__JWT_SECRET: ${AIRFLOW_JWT_SECRET:-airflow_jwt_secret}
+    AIRFLOW__CORE__EXECUTION_API_SERVER_URL: http://airflow-apiserver:8080/execution/
+    AIRFLOW__SCHEDULER__ENABLE_HEALTH_CHECK: "true"
+    # --- pipeline config (read by the DAG) ---
+    MLFLOW_TRACKING_URI: http://mlflow:5000
+    MLFLOW_EXPERIMENT_NAME: ${MLFLOW_EXPERIMENT_NAME:-swe-bench-agent-eval}
+    NEBIUS_API_KEY: ${NEBIUS_API_KEY}
+    PIPELINE_RUNS_ROOT: /opt/airflow/runs
+    # DockerOperator needs HOST paths (the host daemon interprets bind mounts),
+    # not in-container paths. See docs/SETUP.md.
+    HOST_PROJECT_DIR: ${HOST_PROJECT_DIR}
+    HOST_PARENT_DIR: ${HOST_PARENT_DIR}
+    EVAL_IMAGE: ${EVAL_IMAGE:-mlops-eval:latest}
+  volumes:
+    - ./dags:/opt/airflow/dags
+    - ./pipeline:/opt/airflow/pipeline
+    - ./scripts:/opt/airflow/scripts
+    - ./runs:/opt/airflow/runs
+    - ./logs:/opt/airflow/logs
+    - /var/run/docker.sock:/var/run/docker.sock
+  user: "${AIRFLOW_UID:-50000}:0"
+  # Grant access to the mounted docker socket (host's docker group gid).
+  group_add:
+    - ${DOCKER_GID:-999}
+  depends_on:
+    postgres:
+      condition: service_healthy
+
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: airflow
+      POSTGRES_PASSWORD: airflow
+      POSTGRES_DB: airflow
+    volumes:
+      - postgres-db:/var/lib/postgresql/data
+      - ./docker/initdb:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "airflow"]
+      interval: 10s
+      retries: 5
+      start_period: 5s
+    restart: always
+
+  mlflow:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.mlflow
+    command: >
+      mlflow server
+      --backend-store-uri postgresql+psycopg2://airflow:airflow@postgres/mlflow
+      --artifacts-destination /mlflow/artifacts
+      --host 0.0.0.0 --port 5000
+    ports:
+      - "5000:5000"
+    volumes:
+      - mlflow-artifacts:/mlflow/artifacts
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: always
+
+  airflow-init:
+    <<: *airflow-common
+    entrypoint: /bin/bash
+    command:
+      - -c
+      - |
+        airflow db migrate
+        airflow users create \
+          --username "${AIRFLOW_ADMIN_USER:-admin}" \
+          --password "${AIRFLOW_ADMIN_PASSWORD:-admin}" \
+          --firstname admin --lastname admin --role Admin \
+          --email admin@example.com || true
+    restart: on-failure
+
+  airflow-apiserver:
+    <<: *airflow-common
+    command: api-server
+    ports:
+      - "8080:8080"
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://localhost:8080/api/v2/monitor/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    restart: always
+    depends_on:
+      airflow-init:
+        condition: service_completed_successfully
+
+  airflow-scheduler:
+    <<: *airflow-common
+    command: scheduler
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://localhost:8974/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    restart: always
+    depends_on:
+      airflow-init:
+        condition: service_completed_successfully
+
+  airflow-dag-processor:
+    <<: *airflow-common
+    command: dag-processor
+    healthcheck:
+      test: ["CMD-SHELL", 'airflow jobs check --job-type DagProcessorJob --hostname "$${HOSTNAME}"']
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    restart: always
+    depends_on:
+      airflow-init:
+        condition: service_completed_successfully
+
+  airflow-triggerer:
+    <<: *airflow-common
+    command: triggerer
+    healthcheck:
+      test: ["CMD-SHELL", 'airflow jobs check --job-type TriggererJob --hostname "$${HOSTNAME}"']
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    restart: always
+    depends_on:
+      airflow-init:
+        condition: service_completed_successfully
+
+volumes:
+  postgres-db:
+  mlflow-artifacts:

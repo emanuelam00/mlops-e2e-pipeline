@@ -191,6 +191,77 @@ the output folder name; otherwise it auto-generates `YYYYMMDD-HHMMSS__<model>`.
 
 ---
 
+## E. Production-style deployment (Docker Compose) — Phase 3
+
+Brings up **Airflow (LocalExecutor) + MLflow server + Postgres** as containers,
+replacing the standalone script. Do this in stages so each layer is verified
+before the next.
+
+**E1. Stop standalone Airflow** (Ctrl+C in its terminal) so ports 8080/5000 are free.
+
+**E2. Fill in the compose vars in `.env`** (the new block in `.env.example`):
+
+```bash
+cd ~/mlops-e2e-pipeline
+echo "AIRFLOW_UID=$(id -u)"                 >> .env   # own the ./runs files
+echo "DOCKER_GID=$(getent group docker | cut -d: -f3)" >> .env   # socket access
+echo "HOST_PROJECT_DIR=$(pwd)"              >> .env
+echo "HOST_PARENT_DIR=$(dirname "$(pwd)")"  >> .env
+echo "AIRFLOW_JWT_SECRET=$(openssl rand -hex 32)" >> .env   # shared 3.x internal-auth secret
+# set AIRFLOW_IMAGE_NAME to match your standalone version:
+uv tool run apache-airflow version          # 3.2.2  -> AIRFLOW_IMAGE_NAME=apache/airflow:3.2.2
+```
+
+Make sure `NEBIUS_API_KEY` is already in `.env` (it is, from earlier).
+
+**E3. Build the images** (the eval image used by DockerOperator, plus the
+Airflow + MLflow images):
+
+```bash
+docker build -t mlops-eval:latest .        # eval image from the root Dockerfile
+docker compose build                       # airflow + mlflow images
+```
+
+**E4. Bring up the stack:**
+
+```bash
+docker compose up -d
+docker compose ps                          # all services Up / healthy
+```
+
+`airflow-init` runs once (db migrate + create the admin user) and exits — that's
+expected. Watch logs if anything restarts:
+
+```bash
+docker compose logs -f airflow-scheduler
+docker compose logs -f mlflow
+```
+
+**E5. Verify the stack:**
+
+- Airflow UI -> http://localhost:8080 (forward 8080) — log in `admin` / `admin`,
+  confirm the DAGs parse with no import errors.
+- MLflow UI -> http://localhost:5000 (forward 5000) — now a real server, no more
+  Safari/forwarding quirk; the DAG logs here via `MLFLOW_TRACKING_URI=http://mlflow:5000`.
+
+> At this checkpoint the stack is healthy but the pipeline still runs via the
+> standalone-style subprocess DAG. The **DockerOperator DAG** (`evaluate_agent_docker`)
+> that runs the agent/eval steps inside the eval image is the next step — it's
+> what makes the compose deployment actually execute the pipeline in isolation.
+
+**Common bring-up issues:**
+
+- `permission denied /var/run/docker.sock` -> `DOCKER_GID` doesn't match the host;
+  re-set it with `getent group docker | cut -d: -f3` and `docker compose up -d`.
+- `airflow-init` fails on `users create` -> the FAB provider is installed in
+  `docker/Dockerfile.airflow`; rebuild with `docker compose build --no-cache airflow-init`.
+- Image/tag mismatch -> set `AIRFLOW_IMAGE_NAME` to an Airflow 3.x tag that exists.
+
+**Tear down** (keeps volumes): `docker compose down`. Add `-v` to wipe the
+Postgres + MLflow data too.
+
+---
+
 ## Where the two reference repos live
 
 They are cloned **alongside** this project (as siblings in the parent dir), so

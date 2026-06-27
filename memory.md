@@ -2,7 +2,7 @@
 
 > Working/context log so the assistant can fully restore state after a reset or
 > compaction. **Update cadence: every ~5 interactions** (and at any major
-> milestone). Last updated: 2026-06-27, after adding run steps to SETUP.md.
+> milestone). Last updated: 2026-06-27, after building Phase 3a compose stack.
 
 ## Standing instructions from the user
 
@@ -73,15 +73,46 @@ Core workflow: `run-agent -> run-evaluation -> save-artifacts -> log-metrics`.
 - **Phase 1 ✅** Configurable DAG + pipeline helpers + structured runs/ + sample run.
 - **Phase 2 ✅** MLflow tracking (params, metrics, artifacts, manifest cross-ref).
 - **Phase 2.1 ✅** Put project venv on PATH for DAG subprocesses (standalone fix).
-- **Phase 3 ⬜ (NEXT)** DockerOperator + `docker-compose.yaml` (Airflow + MLflow +
-  postgres). SWE-bench eval needs the Docker socket mounted (docker-out-of-docker).
+- **Phase 3 ◐ IN PROGRESS**
+  - 3a DONE (not yet run on VM): `docker-compose.yaml` (LocalExecutor: postgres +
+    mlflow server + airflow-init/apiserver/scheduler/dag-processor),
+    `docker/Dockerfile.airflow` (airflow + providers-docker + providers-fab +
+    mlflow + boto3), `docker/Dockerfile.mlflow` (python + mlflow + psycopg2 +
+    boto3), `docker/initdb/01-create-mlflow-db.sql`, `.env.example` compose vars,
+    SETUP.md Section E. Docker socket mounted; group_add DOCKER_GID. MLflow server
+    backend = postgres `mlflow` db, artifacts in a volume. YAML lints OK.
+    NEXT for user: fill .env compose vars, `docker build -t mlops-eval:latest .`,
+    `docker compose build && up -d`, verify UIs (8080 Airflow, 5000 MLflow).
+  - 3b TODO: `dags/evaluate_agent_docker.py` — DockerOperator for run_agent/run_eval
+    (eval image, mount docker.sock + runs + mini-swe-agent, env from prepare_run
+    XCom via templating); Python prepare_run/summarize stay. Refactor runner to
+    expose collect_preds + collect_reports (public) for the docker DAG's Python
+    post-steps. Watch the DooD host-path gotcha: DockerOperator mounts use HOST
+    paths (HOST_PROJECT_DIR/HOST_PARENT_DIR), not in-container paths.
+  - Compose targets Airflow 3.x; AIRFLOW_IMAGE_NAME must match user's standalone
+    version. Could need version tweaks on first bring-up (untested in sandbox).
+  - RECONCILED against official Airflow compose (user fetched it; their version =
+    **3.2.2**). Kept LocalExecutor (dropped Celery/redis/worker/flower) but adopted
+    the critical 3.x bits: AIRFLOW__API_AUTH__JWT_SECRET (shared across services,
+    via AIRFLOW_JWT_SECRET in .env), AIRFLOW__CORE__EXECUTION_API_SERVER_URL=
+    http://airflow-apiserver:8080/execution/, AIRFLOW__SCHEDULER__ENABLE_HEALTH_CHECK,
+    correct healthchecks (apiserver /api/v2/monitor/health, scheduler :8974/health,
+    dag-processor & triggerer `airflow jobs check`), added airflow-triggerer.
+    Default image now apache/airflow:3.2.2.
 - **Phase 4 ⬜** Nebius S3 upload of `runs/<run-id>/` + log URI to MLflow + REPORT.md
   + 3 screenshots (Airflow DAG, MLflow runs, object storage).
 
-**Immediate next action (in flight):** user is doing an end-to-end validation run
-in **standalone Airflow** with a tiny config
-`{"subset":"verified","split":"test","workers":1,"task_slice":"0:1"}` to confirm
-Phases 1–2 work on the VM before Dockerizing. Waiting on the result / any task logs.
+**MILESTONE (2026-06-27):** First full end-to-end run on the VM — all 4 tasks
+GREEN in standalone Airflow with `{"subset":"verified","split":"test",
+"workers":1,"task_slice":"0:1"}`. run_id `20260627-144612__nebius__moonshotai__Kimi-K2.6`,
+resolve_rate 1.0 (1/1 resolved), MLflow run `ee9f73e4...` logged to local
+`sqlite:///mlflow.db` + `mlruns/` artifacts. Phases 1–2 validated on real infra.
+
+Fixes that got us there (all committed): removed unsupported `--cost-limit` from
+batch run-agent.sh; added `--with mlflow --with boto3` to run-airflow-standalone.sh
+(Python tasks import in Airflow's env); venv-on-PATH for subprocess tasks.
+
+**NEXT:** Phase 3 — DockerOperator + docker-compose (Airflow + MLflow + postgres).
 
 ## 6. Files created/changed by the assistant
 
