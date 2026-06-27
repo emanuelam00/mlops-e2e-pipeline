@@ -41,7 +41,7 @@ def run_agent_batch(run_config: dict[str, Any], layout: RunLayout, project_root:
         "SPLIT": run_config["split"],
         "MODEL": run_config["model"],
         "WORKERS": str(run_config["workers"]),
-        "CONFIG_PATH": str(project_root / run_config["config_path"]),
+        "CONFIG_PATH": str(run_config["config_path"]),
         "OUTPUT_DIR": str(layout.trajectories_dir),
         "MSWEA_COST_TRACKING": "ignore_errors",
     }

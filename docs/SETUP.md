@@ -88,8 +88,8 @@ cd <REPO_NAME>
 ```
 
 **C2. Run the bootstrap** — installs uv + Docker, clones the two reference
-repos (`mini-swe-agent`, `SWE-bench`) into the project root, creates `.env`,
-runs `uv sync`:
+repos (`mini-swe-agent`, `SWE-bench`) **alongside** the project (in the parent
+dir, as siblings), creates `.env`, runs `uv sync`:
 
 ```bash
 bash scripts/bootstrap-vm.sh
@@ -121,13 +121,23 @@ bash run-airflow-standalone.sh
 
 ---
 
-## Why the two reference repos are cloned into the project root
+## Where the two reference repos live
 
-`scripts/mini-swe-bench-batch.sh` (and the pipeline's default `config_path`)
-reference `mini-swe-agent/src/minisweagent/config/benchmarks/swebench.yaml`
-**relative to the repo root**, and `.gitignore` excludes `mini-swe-agent/` and
-`SWE-bench/`. So they live inside the project dir but are never committed —
-`bootstrap-vm.sh` clones them there for you.
+They are cloned **alongside** this project (as siblings in the parent dir), so
+your tree looks like:
+
+```text
+<parent>/
+  <REPO_NAME>/        <- this project
+  mini-swe-agent/     <- reference (provides the agent benchmark config)
+  SWE-bench/          <- reference
+```
+
+The pipeline finds the agent config automatically (it looks in the sibling
+`mini-swe-agent/` by default). To keep the reference repos somewhere else, set
+`MSWEA_REPOS_DIR=/path/to/parent` in the environment, or pass an explicit
+`config_path` Airflow param. `bootstrap-vm.sh` clones them into the parent for
+you.
 
 ---
 

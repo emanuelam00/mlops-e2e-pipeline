@@ -10,9 +10,8 @@
 # What it does:
 #   1. install uv
 #   2. install Docker (+ add your user to the docker group)
-#   3. clone the two upstream reference repos INTO the project root
-#      (mini-swe-agent provides the benchmark config the agent step uses;
-#       both repos are .gitignored so they are never committed)
+#   3. clone the two upstream reference repos ALONGSIDE the project
+#      (in the parent dir, as siblings -- not inside the project repo)
 #   4. create .env from .env.example (you then add NEBIUS_API_KEY)
 #   5. uv sync
 set -euo pipefail
@@ -57,7 +56,8 @@ else
   echo "==> Docker already installed: $(docker --version)"
 fi
 
-# --- 3. Upstream reference repos (into project root) -----------------------
+# --- 3. Upstream reference repos (alongside the project, in the parent) -----
+PARENT_DIR="$(dirname "$REPO_ROOT")"
 clone_if_missing() {
   local url="$1" dir="$2"
   if [[ -d "$dir/.git" ]]; then
@@ -67,10 +67,10 @@ clone_if_missing() {
     git clone --depth 1 "$url" "$dir"
   fi
 }
-clone_if_missing https://github.com/SWE-agent/mini-swe-agent.git mini-swe-agent
-clone_if_missing https://github.com/swe-bench/SWE-bench.git SWE-bench
+clone_if_missing https://github.com/SWE-agent/mini-swe-agent.git "$PARENT_DIR/mini-swe-agent"
+clone_if_missing https://github.com/swe-bench/SWE-bench.git "$PARENT_DIR/SWE-bench"
 
-AGENT_CFG="mini-swe-agent/src/minisweagent/config/benchmarks/swebench.yaml"
+AGENT_CFG="$PARENT_DIR/mini-swe-agent/src/minisweagent/config/benchmarks/swebench.yaml"
 if [[ -f "$AGENT_CFG" ]]; then
   echo "==> Found agent benchmark config: $AGENT_CFG"
 else

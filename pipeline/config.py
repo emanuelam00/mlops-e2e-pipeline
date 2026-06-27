@@ -10,6 +10,7 @@ from __future__ import annotations
 import os
 import subprocess
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any
 
 # Map the agent-side ``--subset`` to the SWE-bench evaluation ``--dataset_name``.
@@ -29,9 +30,27 @@ DEFAULTS: dict[str, Any] = {
     "model": "nebius/moonshotai/Kimi-K2.6",
     "task_slice": "0:3",
     "cost_limit": 0,
-    # Path (relative to project root) to the mini-swe-agent benchmark config.
-    "config_path": "mini-swe-agent/src/minisweagent/config/benchmarks/swebench.yaml",
+    # Resolved at runtime (see _resolve_agent_config). Leave None to use the
+    # default location: the mini-swe-agent repo cloned ALONGSIDE this project.
+    "config_path": None,
 }
+
+# The two upstream reference repos are cloned as siblings of this project
+# (i.e. in the parent directory). Override the parent location with the
+# MSWEA_REPOS_DIR env var if you keep them somewhere else.
+AGENT_CONFIG_REL = "mini-swe-agent/src/minisweagent/config/benchmarks/swebench.yaml"
+
+
+def _resolve_agent_config(project_root: str | os.PathLike[str], override: str | None) -> str:
+    """Absolute path to the mini-swe-agent benchmark config.
+
+    Resolution order: explicit override -> $MSWEA_REPOS_DIR/<rel> -> sibling dir.
+    """
+    if override:
+        return str(Path(override).expanduser().resolve())
+    repos_dir = os.environ.get("MSWEA_REPOS_DIR")
+    base = Path(repos_dir).expanduser() if repos_dir else Path(project_root).resolve().parent
+    return str((base / AGENT_CONFIG_REL).resolve())
 
 
 def subset_to_dataset_name(subset: str) -> str:
@@ -90,7 +109,8 @@ def build_run_config(params: dict[str, Any], project_root: str | os.PathLike[str
         "model": model,
         "task_slice": str(p["task_slice"]) if p.get("task_slice") else None,
         "cost_limit": p.get("cost_limit"),
-        "config_path": str(p["config_path"]),
+        # Absolute path to the agent benchmark config (sibling repo by default).
+        "config_path": _resolve_agent_config(project_root, p.get("config_path")),
         # --- derived ---
         "dataset_name": subset_to_dataset_name(subset),
         "model_slug": model.replace("/", "__"),
