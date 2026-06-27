@@ -148,10 +148,17 @@ Core workflow: `run-agent -> run-evaluation -> save-artifacts -> log-metrics`.
     Docker isolation, S3, rerun, one completed run). SETUP.md §G = S3 config
     (Nebius aws-configure -> our env mapping). .gitignore: mlruns/, *.db.
   - Smoke-tested summarize_run on sample-run (S3 skipped -> None, mlflow logged).
-  - NEXT for user: create Nebius bucket, fill S3_*/AWS_* in .env,
-    `docker compose up -d`, trigger evaluate_agent_docker, verify
-    remote_artifact_uri in manifest + S3 URI in MLflow; capture 3 screenshots
-    into screenshots/ (airflow_dag, mlflow_runs, object_storage_artifacts).
+  - S3 TARGET DECISION: lecturer did NOT grant IAM perms to create Nebius S3
+    access keys, and Nebius S3 can't be used without creds. So compose now ships
+    a local **MinIO** service (+ minio-init bucket creator) as the default S3
+    target. minio root creds == AWS_ACCESS_KEY_ID/SECRET; console on :9001;
+    bucket = S3_BUCKET. storage.py uses path-style addressing (Config) for
+    MinIO/Nebius compat. .env.example has Option A (MinIO, default) + Option B
+    (Nebius, commented). SETUP §G documents both. Switching to Nebius = .env only.
+  - NEXT for user: set MinIO .env block (secret >=8 chars), `docker compose up -d`,
+    trigger evaluate_agent_docker, verify remote_artifact_uri in manifest + S3
+    URI in MLflow + objects in MinIO console (:9001); capture 3 screenshots into
+    screenshots/ (airflow_dag, mlflow_runs, object_storage_artifacts).
   + 3 screenshots (Airflow DAG, MLflow runs, object storage).
 
 **MILESTONE (2026-06-27):** First full end-to-end run on the VM — all 4 tasks

@@ -337,46 +337,65 @@ agent/eval steps (and SWE-bench's per-task containers) can spawn sub-containers.
 
 ---
 
-## G. Object Storage (Nebius S3) — Phase 4
+## G. Object Storage — Phase 4
 
 When the S3 env vars are set, `summarize_and_log` uploads `runs/<run-id>/` to
-Object Storage, logs the URI to MLflow, and records it in `manifest.json`.
-It's optional — unset, the step is skipped and the local run folder is complete.
+Object Storage, logs the URI to MLflow, and records it in `manifest.json`
+(`remote_artifact_uri`). It's optional — leave `AWS_*` as `XXX` and the step is
+skipped, with the local run folder still complete. The uploader speaks plain S3,
+so it works against **any** S3-compatible endpoint.
 
-**G1. Create a bucket** in the Nebius console (Object Storage), note its name.
+### Option A — local MinIO (default, no external creds)
 
-**G2. Add credentials to `.env`** (Nebius gives you AWS-style keys; this maps
-their `aws configure` values to our env vars):
+The compose stack includes a `minio` service (S3-compatible) and a `minio-init`
+one-shot that creates the bucket. The pipeline uploads here exactly as it would
+to Nebius. Use this when you don't have Nebius IAM access to mint access keys.
 
-| Nebius `aws configure` | `.env` var |
-|---|---|
-| `aws_access_key_id` | `AWS_ACCESS_KEY_ID` |
-| `aws_secret_access_key` | `AWS_SECRET_ACCESS_KEY` |
-| `region` (`eu-north1`) | `AWS_REGION` |
-| `endpoint_url` | `S3_ENDPOINT_URL` |
-| (your bucket) | `S3_BUCKET` |
+**G1.** Set these in `.env` (MinIO root creds == the `AWS_*` creds; secret must
+be ≥ 8 chars):
 
 ```bash
-# in .env
+S3_ENDPOINT_URL=http://minio:9000
+S3_BUCKET=mlops-eval-artifacts
+S3_PREFIX=runs
+AWS_ACCESS_KEY_ID=minioadmin
+AWS_SECRET_ACCESS_KEY=minioadmin123
+AWS_REGION=us-east-1
+```
+
+**G2.** Bring it up and run:
+```bash
+docker compose up -d                 # starts minio + creates the bucket
+# trigger evaluate_agent_docker from the UI
+```
+
+**G3.** Verify: open the MinIO console at http://localhost:9001 (forward 9001),
+log in with the `AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY` values, and browse the
+bucket → `runs/<run-id>/`. Or from a shell:
+```bash
+docker compose exec minio mc alias set local http://localhost:9000 "$AWS_ACCESS_KEY_ID" "$AWS_SECRET_ACCESS_KEY"
+docker compose exec minio mc ls -r "local/$S3_BUCKET"
+```
+
+### Option B — Nebius Object Storage (if you have access keys)
+
+Nebius S3 keys belong to a **service account** under IAM (not your user), so you
+need IAM permission to create them. If you do: create a service account, give it
+a storage role, mint an access key (console: IAM → Service accounts → Access
+keys; or the Nebius CLI), create a bucket, and set in `.env`:
+
+```bash
 S3_ENDPOINT_URL=https://storage.eu-north1.nebius.cloud
 S3_BUCKET=<your-bucket>
-S3_PREFIX=runs
 AWS_ACCESS_KEY_ID=<access-key-id>
 AWS_SECRET_ACCESS_KEY=<access-key-secret>
 AWS_REGION=eu-north1
 ```
-
-**G3. Apply + run:** `docker compose up -d` (forwards the new env into the
-summarize container), then trigger `evaluate_agent_docker`. After it finishes,
-`manifest.json` has `remote_artifact_uri`, and the MLflow run shows the S3 URI.
-
-Verify the upload (with the AWS CLI pointed at Nebius, or the console):
-```bash
-aws --endpoint-url "$S3_ENDPOINT_URL" s3 ls "s3://$S3_BUCKET/runs/" --recursive
-```
+Then `docker compose up -d` and trigger the DAG. (No `minio` service needed, but
+leaving it running is harmless.)
 
 > Screenshots for the report go in `screenshots/`: `airflow_dag.png`,
-> `mlflow_runs.png`, `object_storage_artifacts.png`.
+> `mlflow_runs.png`, `object_storage_artifacts.png` (the MinIO/Nebius bucket view).
 
 ---
 

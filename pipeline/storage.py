@@ -42,6 +42,7 @@ def _s3_settings() -> dict[str, str] | None:
 
 def _client(s: dict[str, str]):
     import boto3  # imported lazily so the module loads without boto3
+    from botocore.config import Config
 
     return boto3.client(
         "s3",
@@ -49,6 +50,9 @@ def _client(s: dict[str, str]):
         aws_access_key_id=os.environ["AWS_ACCESS_KEY_ID"],
         aws_secret_access_key=os.environ["AWS_SECRET_ACCESS_KEY"],
         region_name=s["region"] or None,
+        # Path-style addressing works for MinIO and Nebius alike (avoids
+        # virtual-host bucket subdomains that don't resolve for custom endpoints).
+        config=Config(s3={"addressing_style": "path"}),
     )
 
 

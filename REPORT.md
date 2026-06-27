@@ -122,12 +122,19 @@ can spawn SWE-bench's per-task containers.
 
 See `screenshots/airflow_dag.png`.
 
-## Object Storage (Nebius S3)
+## Object Storage (S3-compatible)
 
 When the S3 env vars are set, `summarize_and_log` mirrors the whole
 `runs/<run-id>/` folder to `s3://<bucket>/<prefix>/<run-id>/`, logs that URI to
 MLflow, and records it in `manifest.json` (`remote_artifact_uri`). If S3 is not
 configured the step is skipped and the local run folder is still complete.
+
+The uploader (`pipeline/storage.py`, boto3, path-style addressing) is endpoint-
+agnostic, so it targets **any** S3-compatible store. The compose stack ships a
+local **MinIO** service (+ a `minio-init` that creates the bucket) as the default
+target — Nebius Object Storage requires service-account access keys that need IAM
+permissions to mint, so MinIO provides the same S3 API for a self-contained demo.
+Switching to Nebius is purely an `.env` change (endpoint + bucket + keys).
 
 See `screenshots/object_storage_artifacts.png`.
 

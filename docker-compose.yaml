@@ -115,6 +115,43 @@ services:
         condition: service_healthy
     restart: always
 
+  # Local S3-compatible Object Storage (stand-in for Nebius S3 when you don't
+  # have IAM creds to mint Nebius access keys). The pipeline uploads here exactly
+  # as it would to Nebius -- same S3 API. Console UI on :9001 for screenshots.
+  # MinIO root creds == the AWS_* creds the pipeline uses.
+  minio:
+    image: minio/minio:latest
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${AWS_ACCESS_KEY_ID:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${AWS_SECRET_ACCESS_KEY:-minioadmin}
+    ports:
+      - "9000:9000"   # S3 API
+      - "9001:9001"   # web console
+    volumes:
+      - minio-data:/data
+    restart: always
+
+  # One-shot: wait for MinIO, then create the bucket the pipeline uploads to.
+  minio-init:
+    image: minio/mc:latest
+    depends_on:
+      - minio
+    environment:
+      MINIO_ROOT_USER: ${AWS_ACCESS_KEY_ID:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${AWS_SECRET_ACCESS_KEY:-minioadmin}
+      S3_BUCKET: ${S3_BUCKET:-mlops-eval-artifacts}
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        until mc alias set local http://minio:9000 "$$MINIO_ROOT_USER" "$$MINIO_ROOT_PASSWORD"; do
+          echo "waiting for minio..."; sleep 2;
+        done
+        mc mb -p "local/$$S3_BUCKET" || true
+        echo "bucket ready: $$S3_BUCKET"
+    restart: on-failure
+
   airflow-init:
     # Runs as ROOT to fix ownership of the bind-mounted logs/runs dirs (Docker
     # creates them as root, so the AIRFLOW_UID services otherwise can't write
@@ -200,3 +237,4 @@ services:
 volumes:
   postgres-db:
   mlflow-artifacts:
+  minio-data:
