@@ -141,3 +141,10 @@ runs/<run-id>/
 - Phase 3: SWE-bench eval in a container requires mounting `/var/run/docker.sock`.
 - Airflow needs `NEBIUS_API_KEY` in its env: user runs `set -a; source .env; set +a`
   before `run-airflow-standalone.sh`.
+- **Two execution envs (important):** Python `@task`s (prepare_run,
+  summarize_and_log) run inside the Airflow uv-tool env; subprocess tasks
+  (run_agent, run_eval) shell into the project `.venv`. RESOLVED a
+  `No module named 'mlflow'` failure by adding `--with mlflow --with boto3` to
+  the `uv tool run apache-airflow standalone` line in run-airflow-standalone.sh.
+  After editing that script, restart Airflow + Clear the failed task. Phase 3
+  (DockerOperator) removes this env split.

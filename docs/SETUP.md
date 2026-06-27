@@ -172,10 +172,22 @@ and logged artifacts (config.json, metrics.json, manifest.json, preds.json).
 **Re-running by run-id:** pass an explicit `run_id` in the trigger config to pin
 the output folder name; otherwise it auto-generates `YYYYMMDD-HHMMSS__<model>`.
 
-**Troubleshooting:** if a task is red, open its log in the Airflow UI, or check
-`runs/<run-id>/run-agent/run-agent.log` / `run-eval/run-eval.log`. Common cause:
-`mini-extra: command not found` -> venv not found (run from repo root; the runner
-also auto-prepends `.venv/bin` to PATH).
+**Troubleshooting:**
+
+- A red task -> open its log in the Airflow UI, or check
+  `runs/<run-id>/run-agent/run-agent.log` / `run-eval/run-eval.log`.
+- `mini-extra: command not found` -> venv not found (run from repo root; the
+  runner also auto-prepends `.venv/bin` to PATH).
+- `No module named 'mlflow'` in `summarize_and_log` -> Airflow runs in an
+  isolated uv tool env; the in-process imports (mlflow, boto3) are added via
+  `--with` in `run-airflow-standalone.sh`. After editing that script, **restart
+  Airflow** and then **Clear** the failed task to rerun it.
+
+> Two execution environments to keep straight: **Python `@task`s** (prepare_run,
+> summarize_and_log) run *inside the Airflow process env* -> need mlflow/boto3
+> there. **Subprocess tasks** (run_agent, run_eval) shell out into the project
+> `.venv` -> need mini-swe-agent/swebench there. Phase 3 (DockerOperator)
+> removes this split by running the work in a container image.
 
 ---
 
