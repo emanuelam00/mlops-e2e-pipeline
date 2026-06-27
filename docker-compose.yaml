@@ -92,13 +92,21 @@ services:
     restart: always
 
   airflow-init:
-    # Use the image's OWN entrypoint (do NOT override it) so Airflow's Python env
-    # is set up correctly. The entrypoint runs `db migrate` and creates the admin
-    # user when these env vars are set -- the documented init mechanism. (Calling
-    # bare `airflow ...` under `entrypoint: /bin/bash` bypasses that setup and
-    # fails with "No module named 'airflow'".)
+    # Runs as ROOT to fix ownership of the bind-mounted logs/runs dirs (Docker
+    # creates them as root, so the AIRFLOW_UID services otherwise can't write
+    # their logs). Then runs the airflow CLI THROUGH `/entrypoint` so Airflow's
+    # Python env is set up correctly (calling bare `airflow` bypasses that and
+    # fails with "No module named 'airflow'"). `_AIRFLOW_DB_MIGRATE` /
+    # `_AIRFLOW_WWW_USER_CREATE` trigger db migrate + admin user creation.
     <<: *airflow-common
-    command: version
+    entrypoint: /bin/bash
+    user: "0:0"
+    command:
+      - -c
+      - |
+        mkdir -p /opt/airflow/logs /opt/airflow/runs
+        chown -R "${AIRFLOW_UID:-50000}:0" /opt/airflow/logs /opt/airflow/runs
+        exec /entrypoint airflow version
     environment:
       <<: *airflow-common-env
       _AIRFLOW_DB_MIGRATE: "true"
