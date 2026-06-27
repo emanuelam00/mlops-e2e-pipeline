@@ -279,6 +279,56 @@ Postgres + MLflow data too.
 
 ---
 
+## F. Run the DockerOperator pipeline (`evaluate_agent_docker`) — Phase 3b
+
+The `evaluate_agent_docker` DAG runs the agent, evaluation, and summarize steps
+inside the **eval image** via `DockerOperator`, with MLflow logging to the
+compose MLflow server. Airflow only orchestrates.
+
+**F1. Prereqs** (from Section E): the stack is up, the eval image is built
+(`docker build -t mlops-eval:latest .`), and `.env` has `HOST_PROJECT_DIR`,
+`HOST_PARENT_DIR`, `EVAL_IMAGE`, and `COMPOSE_NETWORK` (default
+`mlops-e2e-pipeline_default` — verify with `docker network ls | grep default`).
+After editing `.env`, apply it: `docker compose up -d`.
+
+**F2. Trigger** `evaluate_agent_docker` from the Airflow UI (http://localhost:8080)
+with a small config:
+
+```json
+{"subset": "verified", "split": "test", "workers": 1, "task_slice": "0:1"}
+```
+
+Watch `prepare_run -> run_agent -> run_eval -> summarize_and_log`. The three
+docker tasks each launch a transient eval container (visible via `docker ps`).
+
+**F3. Verify** (same artifacts as the standalone run, now produced via Docker):
+
+```bash
+ls -R runs/<run-id>/
+cat runs/<run-id>/metrics.json
+```
+The run appears in the MLflow UI (http://localhost:5000) under
+`swe-bench-agent-eval`, logged by the summarize container over the compose network.
+
+**How the docker-out-of-docker paths work:** DockerOperator talks to the HOST
+docker daemon, so bind mounts use HOST paths. The DAG mounts the project and the
+sibling `mini-swe-agent` at their *identical* host paths inside each eval
+container, so every absolute path (runs dir, agent config, scripts) is the same
+in and out of the container — no path translation. The socket is mounted so the
+agent/eval steps (and SWE-bench's per-task containers) can spawn sub-containers.
+
+**Common issues:**
+
+- `Error: No such image: mlops-eval:latest` -> build it: `docker build -t mlops-eval:latest .`.
+- summarize can't reach MLflow (`Connection refused http://mlflow:5000`) ->
+  `COMPOSE_NETWORK` doesn't match; set it to the real network from
+  `docker network ls | grep default` and `docker compose up -d`.
+- `permission denied /var/run/docker.sock` inside the eval container -> the
+  `DOCKER_GID` must match the host docker group (Section E .env).
+- agent auth errors -> `NEBIUS_API_KEY` must be in `.env` (the DAG passes it through).
+
+---
+
 ## Where the two reference repos live
 
 They are cloned **alongside** this project (as siblings in the parent dir), so

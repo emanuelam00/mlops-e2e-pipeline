@@ -41,6 +41,9 @@ x-airflow-common: &airflow-common
     HOST_PROJECT_DIR: ${HOST_PROJECT_DIR}
     HOST_PARENT_DIR: ${HOST_PARENT_DIR}
     EVAL_IMAGE: ${EVAL_IMAGE:-mlops-eval:latest}
+    # Compose network name so DockerOperator eval containers can reach the
+    # mlflow service (and have internet). Defaults to "<project>_default".
+    COMPOSE_NETWORK: ${COMPOSE_NETWORK:-mlops-e2e-pipeline_default}
   volumes:
     - ./dags:/opt/airflow/dags
     - ./pipeline:/opt/airflow/pipeline

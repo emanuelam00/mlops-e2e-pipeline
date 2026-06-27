@@ -9,7 +9,12 @@ from pipeline.layout import RunLayout, prepare_run_dir
 from pipeline.metrics import collect_metrics
 from pipeline.manifest import build_manifest
 from pipeline.mlflow_utils import log_mlflow_run
-from pipeline.runner import run_agent_batch, run_swebench_eval
+from pipeline.runner import (
+    collect_preds,
+    collect_reports,
+    run_agent_batch,
+    run_swebench_eval,
+)
 
 __all__ = [
     "build_run_config",
@@ -19,6 +24,8 @@ __all__ = [
     "collect_metrics",
     "build_manifest",
     "log_mlflow_run",
+    "collect_preds",
+    "collect_reports",
     "run_agent_batch",
     "run_swebench_eval",
 ]

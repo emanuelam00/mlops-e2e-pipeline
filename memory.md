@@ -2,7 +2,7 @@
 
 > Working/context log so the assistant can fully restore state after a reset or
 > compaction. **Update cadence: every ~5 interactions** (and at any major
-> milestone). Last updated: 2026-06-27, after building Phase 3a compose stack.
+> milestone). Last updated: 2026-06-27, after 3a healthy + building 3b DAG.
 
 ## Standing instructions from the user
 
@@ -83,12 +83,26 @@ Core workflow: `run-agent -> run-evaluation -> save-artifacts -> log-metrics`.
     backend = postgres `mlflow` db, artifacts in a volume. YAML lints OK.
     NEXT for user: fill .env compose vars, `docker build -t mlops-eval:latest .`,
     `docker compose build && up -d`, verify UIs (8080 Airflow, 5000 MLflow).
-  - 3b TODO: `dags/evaluate_agent_docker.py` — DockerOperator for run_agent/run_eval
-    (eval image, mount docker.sock + runs + mini-swe-agent, env from prepare_run
-    XCom via templating); Python prepare_run/summarize stay. Refactor runner to
-    expose collect_preds + collect_reports (public) for the docker DAG's Python
-    post-steps. Watch the DooD host-path gotcha: DockerOperator mounts use HOST
-    paths (HOST_PROJECT_DIR/HOST_PARENT_DIR), not in-container paths.
+  - 3a HEALTHY on VM: all 7 services up, Airflow :8080 + MLflow :5000 accessible.
+    (Fixes that got there: minimal airflow image; init uses image entrypoint +
+    _AIRFLOW_DB_MIGRATE; init runs as root and chowns logs/runs dirs.)
+  - 3b DONE (not yet run on VM): `dags/evaluate_agent_docker.py` —
+    prepare_run (python @task) -> run_agent/run_eval/summarize_and_log (all
+    DockerOperator on the eval image). DooD approach: mount project +
+    sibling mini-swe-agent at IDENTICAL host paths (HOST_PROJECT_DIR/
+    HOST_PARENT_DIR) so paths match in/out of container; mount docker.sock;
+    network_mode=COMPOSE_NETWORK so summarize reaches mlflow:5000. run_id flows
+    via XCom Jinja templates. summarize runs `python -m pipeline.summarize` in the
+    eval image (has mlflow/boto3 via uv) -> keeps airflow image clean.
+    Refactored runner.py: `_collect_reports`->public `collect_reports`, added
+    `collect_preds`; both reused by pipeline/summarize.py. Added COMPOSE_NETWORK
+    to compose env + .env.example. py_compile + helper smoke test pass.
+    NEXT for user: build eval image, ensure .env has HOST_*/EVAL_IMAGE/
+    COMPOSE_NETWORK, `docker compose up -d`, trigger `evaluate_agent_docker` with
+    {"subset":"verified","split":"test","workers":1,"task_slice":"0:1"}.
+    WATCH-OUTS: eval image build needs uv.lock to include mlflow/boto3 (it built
+    on VM already); auto_remove="success" + mount_tmp_dir=False on operators;
+    DOCKER_GID must match host for in-container socket access.
   - Compose targets Airflow 3.x; AIRFLOW_IMAGE_NAME must match user's standalone
     version. Could need version tweaks on first bring-up (untested in sandbox).
   - RECONCILED against official Airflow compose (user fetched it; their version =

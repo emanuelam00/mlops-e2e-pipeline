@@ -71,10 +71,18 @@ def run_agent_batch(run_config: dict[str, Any], layout: RunLayout, project_root:
         log_file=layout.run_agent_dir / "run-agent.log",
     )
 
+    return collect_preds(layout)
+
+
+def collect_preds(layout: RunLayout) -> Path:
+    """Copy the agent's ``trajectories/preds.json`` to the stable ``preds.json``.
+
+    Idempotent. Used by both the subprocess runner and the containerized
+    summarize step (where the agent ran in a separate DockerOperator).
+    """
     produced = layout.trajectories_dir / "preds.json"
     if not produced.exists():
         raise FileNotFoundError(f"Agent did not produce preds.json at {produced}")
-    # Stable convenience copy at run-agent/preds.json.
     shutil.copy2(produced, layout.preds_json)
     return layout.preds_json
 
@@ -103,11 +111,11 @@ def run_swebench_eval(run_config: dict[str, Any], preds_path: Path, layout: RunL
     )
 
     # The harness drops a summary json named "<model_slug>.<run_id>.json" in cwd.
-    _collect_reports(run_config, layout)
+    collect_reports(run_config, layout)
     return layout.run_eval_dir
 
 
-def _collect_reports(run_config: dict[str, Any], layout: RunLayout) -> None:
+def collect_reports(run_config: dict[str, Any], layout: RunLayout) -> None:
     """Move the summary json + per-instance report.json files into reports/."""
     layout.eval_reports_dir.mkdir(parents=True, exist_ok=True)
     run_id = run_config["run_id"].replace("/", "_")
