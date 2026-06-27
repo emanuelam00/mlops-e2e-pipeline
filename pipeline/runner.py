@@ -17,6 +17,20 @@ from typing import Any
 from pipeline.layout import RunLayout
 
 
+def _base_env(project_root: Path) -> dict[str, str]:
+    """os.environ with the project venv's bin dir on PATH.
+
+    Lets the subprocess find ``mini-extra``/``swebench`` even when the venv is
+    not activated (e.g. when Airflow standalone launches the task). Harmless in
+    the Docker path, where the venv is already on PATH.
+    """
+    env = dict(os.environ)
+    venv_bin = project_root / ".venv" / "bin"
+    if venv_bin.is_dir():
+        env["PATH"] = f"{venv_bin}{os.pathsep}{env.get('PATH', '')}"
+    return env
+
+
 def _run(cmd: list[str], *, cwd: Path, env: dict[str, str], log_file: Path) -> None:
     """Run a command, streaming combined stdout/stderr to ``log_file``."""
     log_file.parent.mkdir(parents=True, exist_ok=True)
@@ -36,7 +50,7 @@ def run_agent_batch(run_config: dict[str, Any], layout: RunLayout, project_root:
     """
     script = project_root / "scripts" / "run-agent.sh"
     env = {
-        **os.environ,
+        **_base_env(project_root),
         "SUBSET": run_config["subset"],
         "SPLIT": run_config["split"],
         "MODEL": run_config["model"],
@@ -74,7 +88,7 @@ def run_swebench_eval(run_config: dict[str, Any], preds_path: Path, layout: RunL
     script = project_root / "scripts" / "run-eval.sh"
     run_id = run_config["run_id"]
     env = {
-        **os.environ,
+        **_base_env(project_root),
         "DATASET_NAME": run_config["dataset_name"],
         "PREDICTIONS_PATH": str(preds_path),
         "MAX_WORKERS": str(run_config["workers"]),
