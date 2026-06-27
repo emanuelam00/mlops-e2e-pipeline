@@ -32,6 +32,7 @@ from pipeline.config import build_run_config  # noqa: E402
 from pipeline.layout import RunLayout, prepare_run_dir  # noqa: E402
 from pipeline.manifest import build_manifest  # noqa: E402
 from pipeline.metrics import collect_metrics  # noqa: E402
+from pipeline.mlflow_utils import log_mlflow_run  # noqa: E402
 from pipeline.runner import run_agent_batch, run_swebench_eval  # noqa: E402
 
 # Runs directory: overridable so it can point at a mounted volume / shared disk.
@@ -105,14 +106,24 @@ def evaluate_agent():
 
     @task
     def summarize_and_log(run_config: dict, eval_dir: str) -> dict:
-        """Parse reports, write metrics.json + manifest.json (MLflow in Phase 2)."""
+        """Parse reports, write metrics.json, log to MLflow, write manifest.json."""
         layout = RunLayout(root=RUNS_ROOT / run_config["run_id"])
         metrics = collect_metrics(layout)
         layout.metrics_json.write_text(json.dumps(metrics, indent=2, sort_keys=True))
-        manifest = build_manifest(run_config, layout, metrics)
+
+        # Log params/metrics/artifacts to MLflow (one DAG run -> one MLflow run).
+        mlflow_info = log_mlflow_run(
+            run_config,
+            metrics,
+            layout,
+            default_tracking_uri=f"sqlite:///{PROJECT_ROOT / 'mlflow.db'}",
+        )
+
+        manifest = build_manifest(run_config, layout, metrics, mlflow_info=mlflow_info)
         print(f"[summarize_and_log] metrics: {json.dumps(metrics, indent=2)}")
+        print(f"[summarize_and_log] mlflow: {mlflow_info}")
         print(f"[summarize_and_log] manifest: {layout.manifest_json}")
-        return metrics
+        return {"metrics": metrics, "mlflow": mlflow_info}
 
     cfg = prepare_run()
     preds = run_agent(cfg)

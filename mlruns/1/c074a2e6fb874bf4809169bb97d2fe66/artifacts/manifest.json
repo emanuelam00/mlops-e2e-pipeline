@@ -26,7 +26,7 @@
     "instance_reports": 3,
     "trajectories": 3
   },
-  "generated_at": "2026-06-27T14:08:35.773962+00:00",
+  "generated_at": "2026-06-27T13:09:02.066919+00:00",
   "git_sha": "e1cfa8b3b920e9df7da0b5e4f3565ff89fb9e78e",
   "metrics": {
     "completed_instances": 3,
@@ -38,12 +38,6 @@
     "total_instances": 500,
     "unresolved_instances": 2
   },
-  "mlflow": {
-    "artifact_uri": "mlflow-artifacts:/<experiment-id>/<mlflow-run-id>/artifacts",
-    "experiment": "swe-bench-agent-eval",
-    "mlflow_run_id": "<mlflow-run-id>",
-    "tracking_uri": "http://localhost:5000"
-  },
-  "remote_artifact_uri": null,
+  "remote_artifact_uri": "s3://nebius-mlops-artifacts/runs/sample-run/",
   "run_id": "sample-run"
 }

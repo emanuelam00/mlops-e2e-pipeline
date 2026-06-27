@@ -1,0 +1,15 @@
+{
+  "config_path": "mini-swe-agent/src/minisweagent/config/benchmarks/swebench.yaml",
+  "cost_limit": 0,
+  "created_at": "2026-06-27T13:08:16.971947+00:00",
+  "dataset_name": "princeton-nlp/SWE-bench_Verified",
+  "git_sha": "e1cfa8b3b920e9df7da0b5e4f3565ff89fb9e78e",
+  "model": "nebius/moonshotai/Kimi-K2.6",
+  "model_slug": "nebius__moonshotai__Kimi-K2.6",
+  "project_root": "/sessions/peaceful-wizardly-einstein/mnt/assignment 11 - E2E ML Pipeline/mlops-assignment-e2e-ml-pipeline",
+  "run_id": "sample-run",
+  "split": "test",
+  "subset": "verified",
+  "task_slice": "0:3",
+  "workers": 5
+}

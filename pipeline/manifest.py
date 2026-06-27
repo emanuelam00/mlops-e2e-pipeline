@@ -35,6 +35,7 @@ def build_manifest(
     metrics: dict[str, Any],
     *,
     artifact_uri: str | None = None,
+    mlflow_info: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Assemble and persist ``manifest.json``; returns the manifest dict."""
     root = layout.root
@@ -56,6 +57,8 @@ def build_manifest(
             "trajectories": _count_dirs(layout.trajectories_dir),
             "instance_reports": _count_files(layout.eval_reports_dir, "*.report.json"),
         },
+        # MLflow cross-reference: from this folder you can find the tracked run.
+        "mlflow": mlflow_info,
         # Where the full artifacts live long-term (set by the S3 upload task).
         "remote_artifact_uri": artifact_uri,
     }
