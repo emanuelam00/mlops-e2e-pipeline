@@ -107,17 +107,75 @@ newgrp docker      # or just log out and back in
 nano .env          # set NEBIUS_API_KEY=...
 ```
 
-**C4. Sanity checks:**
+**C4. Smoke test the agent** (cheap, proves Nebius key + Docker + agent loop).
+Run from the **repo root** with the venv active so `mini-extra` is on PATH:
 
 ```bash
-# single-task agent run (cheap smoke test)
-bash scripts/mini-swe-bench-single.sh
-
-# Airflow (easy mode)
-bash run-airflow-standalone.sh
-# then forward 8080 from your Mac:  ssh -L 8080:localhost:8080 academy-vm
-# open http://localhost:8080  (login admin/admin) and trigger `evaluate_agent`
+source .venv/bin/activate
+bash scripts/mini-swe-bench-single.sh   # one instance; can take several minutes
 ```
+
+It's fine to `Ctrl+C` once you've seen it stepping through the agent loop — you
+only need it to start cleanly (no auth/setup error).
+
+---
+
+## D. Run the pipeline end-to-end (standalone Airflow)
+
+This validates Phases 1–2 (configurable DAG + structured runs/ + MLflow) before
+the Docker Compose deployment in Phase 3.
+
+**D1. Start Airflow** with the Nebius key loaded into its environment (so the
+DAG's tasks inherit it). Run from the repo root:
+
+```bash
+cd ~/<REPO_NAME>
+set -a; source .env; set +a          # export NEBIUS_API_KEY (and MLflow vars)
+bash run-airflow-standalone.sh        # serves the UI on :8080
+```
+
+**D2. Open the UI.** Forward port `8080` (VSCode Remote-SSH auto-forwards — see
+the Ports tab; or `ssh -L 8080:localhost:8080 academy-vm`), then open
+http://localhost:8080 and log in `admin` / `admin`.
+
+**D3. Trigger `evaluate_agent` small.** Unpause the DAG, then
+**Trigger DAG w/ config** with a tiny slice so it finishes quickly:
+
+```json
+{"subset": "verified", "split": "test", "workers": 1, "task_slice": "0:1"}
+```
+
+Watch the four tasks go green: `prepare_run -> run_agent -> run_eval ->
+summarize_and_log`. (`run_agent` pulls a repo testbed image the first time;
+`run_eval` pulls/builds the SWE-bench eval image — both bounded for one task.)
+
+**D4. Inspect the outputs:**
+
+```bash
+ls -R runs/                  # runs/<run-id>/ : config, run-agent, run-eval, metrics, manifest
+cat runs/*/metrics.json
+cat runs/*/manifest.json     # note the embedded mlflow run id + artifact uri
+```
+
+**D5. View MLflow.** With no tracking server yet (Phase 3 adds one), runs log to
+a local SQLite store at `mlflow.db`:
+
+```bash
+mlflow ui --backend-store-uri sqlite:///mlflow.db --port 5000
+# forward 5000, open http://localhost:5000  -> experiment "swe-bench-agent-eval"
+```
+
+You should see one run with params (split, subset, workers, model, task_slice,
+cost_limit, dataset_name, git_sha), metrics (resolved/unresolved/resolve_rate…),
+and logged artifacts (config.json, metrics.json, manifest.json, preds.json).
+
+**Re-running by run-id:** pass an explicit `run_id` in the trigger config to pin
+the output folder name; otherwise it auto-generates `YYYYMMDD-HHMMSS__<model>`.
+
+**Troubleshooting:** if a task is red, open its log in the Airflow UI, or check
+`runs/<run-id>/run-agent/run-agent.log` / `run-eval/run-eval.log`. Common cause:
+`mini-extra: command not found` -> venv not found (run from repo root; the runner
+also auto-prepends `.venv/bin` to PATH).
 
 ---
 
