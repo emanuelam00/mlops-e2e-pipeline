@@ -17,3 +17,7 @@ SWE-bench/
 # Pipeline run artifacts are large; keep the curated sample run only.
 /runs/*
 !/runs/sample-run/
+
+# Local MLflow stores (standalone fallback / dev)
+/mlruns/
+*.db

@@ -15,6 +15,8 @@ from pipeline.runner import (
     run_agent_batch,
     run_swebench_eval,
 )
+from pipeline.storage import upload_run_dir
+from pipeline.summarize import summarize_run
 
 __all__ = [
     "build_run_config",
@@ -28,4 +30,6 @@ __all__ = [
     "collect_reports",
     "run_agent_batch",
     "run_swebench_eval",
+    "upload_run_dir",
+    "summarize_run",
 ]

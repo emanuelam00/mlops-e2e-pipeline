@@ -44,6 +44,13 @@ x-airflow-common: &airflow-common
     # Compose network name so DockerOperator eval containers can reach the
     # mlflow service (and have internet). Defaults to "<project>_default".
     COMPOSE_NETWORK: ${COMPOSE_NETWORK:-mlops-e2e-pipeline_default}
+    # Object Storage (Nebius S3) -- forwarded into the summarize eval container.
+    S3_ENDPOINT_URL: ${S3_ENDPOINT_URL:-}
+    S3_BUCKET: ${S3_BUCKET:-}
+    S3_PREFIX: ${S3_PREFIX:-runs}
+    AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
+    AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
+    AWS_REGION: ${AWS_REGION:-}
   volumes:
     - ./dags:/opt/airflow/dags
     - ./pipeline:/opt/airflow/pipeline

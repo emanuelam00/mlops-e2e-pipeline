@@ -126,7 +126,32 @@ Core workflow: `run-agent -> run-evaluation -> save-artifacts -> log-metrics`.
     removed). So for 3b the summarize/MLflow step must run in the EVAL image
     (DockerOperator), not as an in-Airflow Python task -- OR re-add mlflow+boto3
     to Dockerfile.airflow (it imported fine alongside airflow). DECIDE in 3b.
-- **Phase 4 ⬜** Nebius S3 upload of `runs/<run-id>/` + log URI to MLflow + REPORT.md
+- **Phase 3 ✅ COMPLETE (2026-06-27):** full end-to-end DockerOperator run on the
+  VM — all 4 tasks green, run logged to the compose MLflow server (experiment
+  swe-bench-agent-eval, resolve_rate 1.0). Fixes during 3b bring-up:
+  EvalDockerOperator with empty template_ext (the `.sh` command arg was being
+  loaded as a Jinja template file); MLflow server needs `--allowed-hosts '*'
+  --cors-allowed-origins '*'` (3.x security middleware rejected Host: mlflow:5000
+  with 403 "Invalid Host header"). DooD mounts + compose network + XCom templating
+  all working.
+- **Phase 4 ◐ IN PROGRESS** (code done, not yet run with real S3 on VM):
+  - `pipeline/storage.py`: upload_run_dir + upload_file (boto3, Nebius S3-compat,
+    OPTIONAL — skips if S3 env unset / placeholder XXX). Endpoint
+    https://storage.eu-north1.nebius.cloud, region eu-north1.
+  - `pipeline/summarize.py`: now has shared `summarize_run()` (collect_preds +
+    collect_reports + metrics + S3 upload + mlflow(with s3 uri) + manifest +
+    re-upload manifest). BOTH DAGs call it (evaluate_agent.py refactored to use it;
+    docker DAG runs `python -m pipeline.summarize`).
+  - docker DAG summarize operator + compose airflow-common-env now forward
+    S3_*/AWS_* vars. .env.example already had the S3 block.
+  - REPORT.md written (architecture, params table, artifact layout, MLflow,
+    Docker isolation, S3, rerun, one completed run). SETUP.md §G = S3 config
+    (Nebius aws-configure -> our env mapping). .gitignore: mlruns/, *.db.
+  - Smoke-tested summarize_run on sample-run (S3 skipped -> None, mlflow logged).
+  - NEXT for user: create Nebius bucket, fill S3_*/AWS_* in .env,
+    `docker compose up -d`, trigger evaluate_agent_docker, verify
+    remote_artifact_uri in manifest + S3 URI in MLflow; capture 3 screenshots
+    into screenshots/ (airflow_dag, mlflow_runs, object_storage_artifacts).
   + 3 screenshots (Airflow DAG, MLflow runs, object storage).
 
 **MILESTONE (2026-06-27):** First full end-to-end run on the VM — all 4 tasks

@@ -26,7 +26,7 @@
     "instance_reports": 3,
     "trajectories": 3
   },
-  "generated_at": "2026-06-27T14:08:35.773962+00:00",
+  "generated_at": "2026-06-27T18:02:25.024491+00:00",
   "git_sha": "e1cfa8b3b920e9df7da0b5e4f3565ff89fb9e78e",
   "metrics": {
     "completed_instances": 3,
@@ -39,10 +39,10 @@
     "unresolved_instances": 2
   },
   "mlflow": {
-    "artifact_uri": "mlflow-artifacts:/<experiment-id>/<mlflow-run-id>/artifacts",
+    "artifact_uri": "/sessions/peaceful-wizardly-einstein/mnt/assignment 11 - E2E ML Pipeline/mlops-assignment-e2e-ml-pipeline/mlruns/1/4f8f7b6b8d5a473f9e0eb0a7be2843ee/artifacts",
     "experiment": "swe-bench-agent-eval",
-    "mlflow_run_id": "<mlflow-run-id>",
-    "tracking_uri": "http://localhost:5000"
+    "mlflow_run_id": "4f8f7b6b8d5a473f9e0eb0a7be2843ee",
+    "tracking_uri": "sqlite:////tmp/mlflow4.db"
   },
   "remote_artifact_uri": null,
   "run_id": "sample-run"

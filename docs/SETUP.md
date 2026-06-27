@@ -337,6 +337,49 @@ agent/eval steps (and SWE-bench's per-task containers) can spawn sub-containers.
 
 ---
 
+## G. Object Storage (Nebius S3) — Phase 4
+
+When the S3 env vars are set, `summarize_and_log` uploads `runs/<run-id>/` to
+Object Storage, logs the URI to MLflow, and records it in `manifest.json`.
+It's optional — unset, the step is skipped and the local run folder is complete.
+
+**G1. Create a bucket** in the Nebius console (Object Storage), note its name.
+
+**G2. Add credentials to `.env`** (Nebius gives you AWS-style keys; this maps
+their `aws configure` values to our env vars):
+
+| Nebius `aws configure` | `.env` var |
+|---|---|
+| `aws_access_key_id` | `AWS_ACCESS_KEY_ID` |
+| `aws_secret_access_key` | `AWS_SECRET_ACCESS_KEY` |
+| `region` (`eu-north1`) | `AWS_REGION` |
+| `endpoint_url` | `S3_ENDPOINT_URL` |
+| (your bucket) | `S3_BUCKET` |
+
+```bash
+# in .env
+S3_ENDPOINT_URL=https://storage.eu-north1.nebius.cloud
+S3_BUCKET=<your-bucket>
+S3_PREFIX=runs
+AWS_ACCESS_KEY_ID=<access-key-id>
+AWS_SECRET_ACCESS_KEY=<access-key-secret>
+AWS_REGION=eu-north1
+```
+
+**G3. Apply + run:** `docker compose up -d` (forwards the new env into the
+summarize container), then trigger `evaluate_agent_docker`. After it finishes,
+`manifest.json` has `remote_artifact_uri`, and the MLflow run shows the S3 URI.
+
+Verify the upload (with the AWS CLI pointed at Nebius, or the console):
+```bash
+aws --endpoint-url "$S3_ENDPOINT_URL" s3 ls "s3://$S3_BUCKET/runs/" --recursive
+```
+
+> Screenshots for the report go in `screenshots/`: `airflow_dag.png`,
+> `mlflow_runs.png`, `object_storage_artifacts.png`.
+
+---
+
 ## Where the two reference repos live
 
 They are cloned **alongside** this project (as siblings in the parent dir), so
