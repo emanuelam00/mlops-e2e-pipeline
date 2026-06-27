@@ -99,16 +99,19 @@ Core workflow: `run-agent -> run-evaluation -> save-artifacts -> log-metrics`.
     correct healthchecks (apiserver /api/v2/monitor/health, scheduler :8974/health,
     dag-processor & triggerer `airflow jobs check`), added airflow-triggerer.
     Default image now apache/airflow:3.2.2.
-  - BRING-UP BUG #1 (fixed): installing mlflow into the Airflow image clobbered
-    apache-airflow -> "No module named 'airflow'" -> init never migrated ->
-    scheduler crash-looped "Database migration required". FIX: Dockerfile.airflow
-    now installs ONLY apache-airflow-providers-docker, pinned via the official
-    Airflow constraints file (constraints-3.2.2/constraints-3.12.txt). mlflow +
-    boto3 live ONLY in the eval image now; the summarize/MLflow step will run in
-    the eval image (DockerOperator) in 3b, NOT in the Airflow process. Also added
-    `set -e` to airflow-init so a migrate failure surfaces instead of being masked
-    by the trailing `|| true`. User must rebuild: `docker compose build` +
-    `docker compose down && up -d`.
+  - BRING-UP BUG #1 (REAL cause, fixed): airflow-init failed with "No module
+    named 'airflow'" because it OVERRODE `entrypoint: /bin/bash` and called bare
+    `airflow db migrate`, which bypasses the image entrypoint that sets up
+    Airflow's Python env. (Earlier mlflow-clobber theory was WRONG -- the
+    scheduler, which uses the default entrypoint, imported airflow fine even with
+    mlflow installed; only init failed.) FIX: airflow-init now uses the image's
+    default entrypoint with `command: version` + `_AIRFLOW_DB_MIGRATE=true` +
+    `_AIRFLOW_WWW_USER_CREATE=true` (the documented mechanism). Only a compose
+    change -> `docker compose down && up -d` (no rebuild needed).
+  - SIDE EFFECT: Dockerfile.airflow was slimmed to providers-docker only (mlflow
+    removed). So for 3b the summarize/MLflow step must run in the EVAL image
+    (DockerOperator), not as an in-Airflow Python task -- OR re-add mlflow+boto3
+    to Dockerfile.airflow (it imported fine alongside airflow). DECIDE in 3b.
 - **Phase 4 ⬜** Nebius S3 upload of `runs/<run-id>/` + log URI to MLflow + REPORT.md
   + 3 screenshots (Airflow DAG, MLflow runs, object storage).
 

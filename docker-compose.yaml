@@ -92,18 +92,19 @@ services:
     restart: always
 
   airflow-init:
+    # Use the image's OWN entrypoint (do NOT override it) so Airflow's Python env
+    # is set up correctly. The entrypoint runs `db migrate` and creates the admin
+    # user when these env vars are set -- the documented init mechanism. (Calling
+    # bare `airflow ...` under `entrypoint: /bin/bash` bypasses that setup and
+    # fails with "No module named 'airflow'".)
     <<: *airflow-common
-    entrypoint: /bin/bash
-    command:
-      - -c
-      - |
-        set -e
-        airflow db migrate
-        airflow users create \
-          --username "${AIRFLOW_ADMIN_USER:-admin}" \
-          --password "${AIRFLOW_ADMIN_PASSWORD:-admin}" \
-          --firstname admin --lastname admin --role Admin \
-          --email admin@example.com || true
+    command: version
+    environment:
+      <<: *airflow-common-env
+      _AIRFLOW_DB_MIGRATE: "true"
+      _AIRFLOW_WWW_USER_CREATE: "true"
+      _AIRFLOW_WWW_USER_USERNAME: ${AIRFLOW_ADMIN_USER:-admin}
+      _AIRFLOW_WWW_USER_PASSWORD: ${AIRFLOW_ADMIN_PASSWORD:-admin}
     restart: on-failure
 
   airflow-apiserver:
