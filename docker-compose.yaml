@@ -80,11 +80,25 @@ services:
     build:
       context: .
       dockerfile: docker/Dockerfile.mlflow
-    command: >
-      mlflow server
-      --backend-store-uri postgresql+psycopg2://airflow:airflow@postgres/mlflow
-      --artifacts-destination /mlflow/artifacts
-      --host 0.0.0.0 --port 5000
+    # --allowed-hosts / --cors-allowed-origins relax MLflow 3.x's security
+    # middleware so the DAG containers (Host: mlflow:5000) and the forwarded
+    # browser UI aren't rejected as "Invalid Host header". '*' is fine on a
+    # private VM; tighten to specific hosts if exposed.
+    command:
+      - mlflow
+      - server
+      - --backend-store-uri
+      - postgresql+psycopg2://airflow:airflow@postgres/mlflow
+      - --artifacts-destination
+      - /mlflow/artifacts
+      - --host
+      - 0.0.0.0
+      - --port
+      - "5000"
+      - --allowed-hosts
+      - "*"
+      - --cors-allowed-origins
+      - "*"
     ports:
       - "5000:5000"
     volumes:
