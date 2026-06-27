@@ -133,8 +133,11 @@ runs/<run-id>/
 
 ## 10. Open items / watch-outs
 
-- `--cost-limit` flag on `mini-extra swebench` (batch) is appended only when set;
-  if the installed version rejects it, drop it (guarded in run-agent.sh).
+- `--cost-limit` is NOT supported by the batch `mini-extra swebench` subcommand
+  (only `swebench-single`). RESOLVED: removed the flag from run-agent.sh; batch
+  cost/step limits come from the `--config` yaml. cost_limit param is kept for
+  provenance (config.json + MLflow). TODO (optional): wire cost_limit by
+  templating a derived config yaml if we want it to actually take effect in batch.
 - Phase 3: SWE-bench eval in a container requires mounting `/var/run/docker.sock`.
 - Airflow needs `NEBIUS_API_KEY` in its env: user runs `set -a; source .env; set +a`
   before `run-airflow-standalone.sh`.
