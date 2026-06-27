@@ -97,6 +97,7 @@ services:
     command:
       - -c
       - |
+        set -e
         airflow db migrate
         airflow users create \
           --username "${AIRFLOW_ADMIN_USER:-admin}" \

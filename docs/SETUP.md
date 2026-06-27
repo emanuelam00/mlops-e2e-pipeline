@@ -95,11 +95,22 @@ dir, as siblings), creates `.env`, runs `uv sync`:
 bash scripts/bootstrap-vm.sh
 ```
 
-If Docker was freshly installed, apply the group change once:
+<a id="docker-group"></a>
+**Use Docker without sudo.** The bootstrap adds you to the `docker` group, but
+group membership only applies to **new login sessions** — so your current shell
+(and any old VSCode terminal) won't have it yet. Activate it, then verify:
 
 ```bash
-newgrp docker      # or just log out and back in
+groups                            # is 'docker' listed?
+sudo usermod -aG docker "$USER"   # only if it's NOT listed
+newgrp docker                     # activate the group in THIS shell
+#   (or simpler: close the terminal / reconnect SSH for a fresh login)
+docker ps                         # should work WITHOUT sudo
 ```
+
+If you see `permission denied ... /var/run/docker.sock`, the group isn't active
+in this shell — repeat the `newgrp docker` step or reconnect. Don't fall back to
+`sudo docker ...`; it creates root-owned images/files that cause trouble later.
 
 **C3. Add your Nebius key:**
 
@@ -215,7 +226,8 @@ uv tool run apache-airflow version          # 3.2.2  -> AIRFLOW_IMAGE_NAME=apach
 Make sure `NEBIUS_API_KEY` is already in `.env` (it is, from earlier).
 
 **E3. Build the images** (the eval image used by DockerOperator, plus the
-Airflow + MLflow images):
+Airflow + MLflow images). First make sure `docker ps` works without sudo in this
+shell — if not, see [Use Docker without sudo](#docker-group) above.
 
 ```bash
 docker build -t mlops-eval:latest .        # eval image from the root Dockerfile
@@ -251,8 +263,13 @@ docker compose logs -f mlflow
 
 **Common bring-up issues:**
 
-- `permission denied /var/run/docker.sock` -> `DOCKER_GID` doesn't match the host;
-  re-set it with `getent group docker | cut -d: -f3` and `docker compose up -d`.
+- `permission denied ... /var/run/docker.sock` **from your shell** (e.g. on
+  `docker build`/`docker compose`) -> your user isn't in the `docker` group in
+  this session; see [Use Docker without sudo](#docker-group).
+- `permission denied ... /var/run/docker.sock` **from inside a container** (the
+  DockerOperator tasks, Phase 3b) -> `DOCKER_GID` doesn't match the host's docker
+  group; re-set it with `getent group docker | cut -d: -f3`, put it in `.env`,
+  and `docker compose up -d`.
 - `airflow-init` fails on `users create` -> the FAB provider is installed in
   `docker/Dockerfile.airflow`; rebuild with `docker compose build --no-cache airflow-init`.
 - Image/tag mismatch -> set `AIRFLOW_IMAGE_NAME` to an Airflow 3.x tag that exists.

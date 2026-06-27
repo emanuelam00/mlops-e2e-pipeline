@@ -99,6 +99,16 @@ Core workflow: `run-agent -> run-evaluation -> save-artifacts -> log-metrics`.
     correct healthchecks (apiserver /api/v2/monitor/health, scheduler :8974/health,
     dag-processor & triggerer `airflow jobs check`), added airflow-triggerer.
     Default image now apache/airflow:3.2.2.
+  - BRING-UP BUG #1 (fixed): installing mlflow into the Airflow image clobbered
+    apache-airflow -> "No module named 'airflow'" -> init never migrated ->
+    scheduler crash-looped "Database migration required". FIX: Dockerfile.airflow
+    now installs ONLY apache-airflow-providers-docker, pinned via the official
+    Airflow constraints file (constraints-3.2.2/constraints-3.12.txt). mlflow +
+    boto3 live ONLY in the eval image now; the summarize/MLflow step will run in
+    the eval image (DockerOperator) in 3b, NOT in the Airflow process. Also added
+    `set -e` to airflow-init so a migrate failure surfaces instead of being masked
+    by the trailing `|| true`. User must rebuild: `docker compose build` +
+    `docker compose down && up -d`.
 - **Phase 4 ⬜** Nebius S3 upload of `runs/<run-id>/` + log URI to MLflow + REPORT.md
   + 3 screenshots (Airflow DAG, MLflow runs, object storage).
 

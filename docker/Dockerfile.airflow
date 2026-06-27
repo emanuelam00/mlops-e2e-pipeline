@@ -1,28 +1,17 @@
 # Custom Airflow image for the compose stack.
 #
-# Extends the official Airflow image with the libraries the DAG imports
-# IN-PROCESS (inside the scheduler/apiserver), namely:
-#   - apache-airflow-providers-docker : the DockerOperator (run_agent/run_eval)
-#   - apache-airflow-providers-fab     : FAB auth manager + `airflow users create`
-#   - mlflow, boto3                    : summarize_and_log tracking + S3 upload
+# Adds ONLY the DockerOperator provider, so Airflow can launch the eval image.
+# It is pinned with the MATCHING Airflow constraints file so the install cannot
+# drag in a conflicting apache-airflow and break the image (installing mlflow
+# here previously clobbered airflow -> "No module named 'airflow'").
 #
-# The heavy eval tools (mini-swe-agent, swebench) are NOT here -- they run in the
-# separate eval image via DockerOperator. This keeps Airflow's deps clean.
-#
-# Match AIRFLOW_IMAGE_NAME to the Airflow version you validated in standalone
-# (check with: `uv tool run apache-airflow version`).
+# All heavy pipeline deps (mini-swe-agent, swebench, mlflow, boto3) live in the
+# SEPARATE eval image (root Dockerfile) and run via DockerOperator. Airflow only
+# orchestrates -- this keeps its environment clean and conflict-free.
 ARG AIRFLOW_IMAGE_NAME=apache/airflow:3.2.2
 FROM ${AIRFLOW_IMAGE_NAME}
 
-USER root
-# git lets prepare_run record the commit SHA for provenance (optional, harmless).
-RUN apt-get update \
- && apt-get install -y --no-install-recommends git \
- && rm -rf /var/lib/apt/lists/*
-USER airflow
-
-RUN pip install --no-cache-dir \
-      apache-airflow-providers-docker \
-      apache-airflow-providers-fab \
-      mlflow \
-      boto3
+ARG AIRFLOW_VERSION=3.2.2
+ARG PYTHON_VERSION=3.12
+RUN pip install --no-cache-dir "apache-airflow-providers-docker" \
+    --constraint "https://raw.githubusercontent.com/apache/airflow/constraints-${AIRFLOW_VERSION}/constraints-${PYTHON_VERSION}.txt"
