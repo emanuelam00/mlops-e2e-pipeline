@@ -2,11 +2,18 @@ __pycache__
 .ruff_cache
 .venv
 .env
+.DS_Store
+**/.DS_Store
 
+# Ad-hoc script outputs (the pipeline writes to runs/ instead)
 /trajectories/
 /trajectory.json
-
 /logs/
 
+# Upstream reference repos (cloned alongside, not committed)
 mini-swe-agent/
 SWE-bench/
+
+# Pipeline run artifacts are large; keep the curated sample run only.
+/runs/*
+!/runs/sample-run/
